@@ -123,6 +123,9 @@ movie_list = pd.DataFrame({ "Movie Name": movie_name, "Year of Release" : year, 
 # %%
 movie_list.head(5)
 
+print (movie_list)   # this makes it pop up to display first and last 5 lines.
+
+
 # %%
 # #saving the data in excel format
 movie_list.to_excel("Top 1000 IMDb movies.xlsx")
