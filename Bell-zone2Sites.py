@@ -93,7 +93,12 @@ try:
             print (aChannel)
 
 
-    print (len (manyChannels))
+    # no more sites left, dump the guts of the last site
+    controlChans = controlChans[:-1]    # remove tailing comma
+    voiceChans = voiceChans[:-1]        # remove tailing comma
+    print ( controlChans)
+    print ( voiceChans)
+    print ("-----------------------------------\n")
 #    for control in manyControls:
 #        ctrlChan = control.text
 #        print (ctrlChan)
