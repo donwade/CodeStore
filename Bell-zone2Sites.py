@@ -46,19 +46,63 @@ try:
     #print(aSite)
 
     siteTable = aSite.find('table', class_='table table-sm table-responsive table-bordered')
-    print (siteTable)
+    #print (siteTable)
     manySites = siteTable.findAll('td', class_='data-text fit')
     #print ("manySites", manySites)
+
+    manyChannels = siteTable.findAll('td', class_='data-text')
+    manyControls = siteTable.findAll('td', class_='data-text ctrl-pri')
 
     # the name of the site has no class, other entities with style tag do.
     manyNames = siteTable.findAll('td', style='width: 100%', class_=None)
 
     manyLocations  = siteTable.findAll('td', style='width: 100%', class_='noWrapTd')
 
-    for site in manySites:
-        print (site.text)
-        SiteNumber.append(site.text)
+    print(" ")
 
+    voiceChans=''
+    controlChans=''
+
+    print( 'ssss = ', manyChannels[1].text)
+    for channel in manyChannels:
+
+        aChannel = channel.text
+
+        if aChannel.find('c') != -1 :
+            print ("CONTROL = ", aChannel)
+            aChannel = aChannel[:-1]  # remove the 'c'
+            controlChans = controlChans + str(aChannel) + ','
+
+        elif aChannel.find('(') != -1 :
+
+            # starting new site, barf out past sites channels
+            print(" ")
+            controlChans = controlChans[:-1]    # remove tailing comma
+            voiceChans = voiceChans[:-1]        # remove tailing comma
+            print ( controlChans)
+            print ( voiceChans)
+
+            print("\n====================")
+
+            print ("SITE = ", aChannel)
+            voiceChans = ''
+            controlChans = ''
+        
+        else:
+            voiceChans = voiceChans + str(aChannel) + ','
+            print (aChannel)
+
+
+    print (len (manyChannels))
+#    for control in manyControls:
+#        ctrlChan = control.text
+#        print (ctrlChan)
+
+#    for site in manySites:
+#        print (site.text)
+#        SiteNumber.append(site.text)
+
+    '''
     for aname in manyNames:
         name = aname.a.text
         print (name)
@@ -70,7 +114,8 @@ try:
         SiteLocation.append(desc)
 
     print ("SiteNumber =", len(SiteNumber), "Site Name = ", len(SiteName), "Site Locations = ", len (SiteLocation))
-        
+    '''
+
 except Exception as e:
     print (e)
 
