@@ -1,4 +1,5 @@
 #importing the libraries needed 
+import os  # for cls()
 import pandas as pd
 import numpy as np
 import requests
@@ -25,12 +26,14 @@ SiteNumber = []
 SiteName = []
 SiteLocation = []
 SiteFrequencies=[]
+SiteDescription = []
 
 # creating an array of values and passing it in the url for dynamic webpages
 # range from 1 to 1000 counting by 100
 
 RadioZoneHttp = 'https://www.radioreference.com/db/sid/2560'
 RadioFileName = 'BellZone2Sites'
+os.system('clear')
 
 #the whole core of the script
 try:
@@ -46,15 +49,64 @@ try:
     #print(aSite)
 
     siteTable = aSite.find('table', class_='table table-sm table-responsive table-bordered')
-    #print (siteTable)
-    manySites = siteTable.findAll('td', class_='data-text fit')
-    #print ("manySites", manySites)
+    #print ("siteTable = ", siteTable, "\n\n")
 
+    # this is a list of td-'data-txt fit' objects.
+    manySiteNums = siteTable.findAll('td', class_='data-text fit')
+    
+    print ("manySiteNums = ", manySiteNums, "\n\n")
+    for aSite in manySiteNums:
+        print ("------\n\taSite = ", aSite)
+        print ("\taSite.text = ", aSite.text, "\n")
+        SiteNumber.append(aSite.text)
+
+
+    manyNames = siteTable.find_all('td', style='width: 100%', class_=None)
+    print (manyNames)
+    for aName in manyNames:
+        print ("-----\n\taName = ", aName)
+        print ("\taName.text = ", aName.text)
+        SiteName.append(aName.text)
+
+    manyLocations = siteTable.find_all('td', style='width: 100%', class_='noWrapTd')
+    print (manyLocations)
+    for aLocation in manyLocations:
+        print ("-----\n\taName = ", aLocation)
+        print ("\taName.text = ", aLocation.text)
+        SiteLocation.append(aLocation.text)
+
+
+    #creating a dataframe 
+    site2List = pd.DataFrame({ "SiteNum": SiteNumber, "Site Name" : SiteName, "Location": SiteLocation } )
+
+    site2List.head(5)
+
+    print (site2List)   # this makes it pop up to display first and last 5 lines.
+
+
+    # #saving the data in excel format
+    site2List.to_excel(RadioFileName + str(".xlsx"))
+
+    #If you want to save the data in csv format
+    site2List.to_csv(RadioFileName + str(".csv"))
+
+except Exception as e:
+    print (e)
+
+
+
+try:
     manyChannels = siteTable.findAll('td', class_='data-text')
     manyControls = siteTable.findAll('td', class_='data-text ctrl-pri')
 
     # the name of the site has no class, other entities with style tag do.
     manyNames = siteTable.findAll('td', style='width: 100%', class_=None)
+    #print (manyNames)
+
+    for aName in manyNames:
+        theName = aName.a.text
+        print ("Site name = ", theName)
+       
 
     manyLocations  = siteTable.findAll('td', style='width: 100%', class_='noWrapTd')
 
@@ -107,38 +159,19 @@ try:
 #        print (site.text)
 #        SiteNumber.append(site.text)
 
-    '''
     for aname in manyNames:
         name = aname.a.text
-        print (name)
+        print ("Site Name = ", name)
         SiteName.append(name)
 
+    quit()
     for aLocation in manyLocations:
         desc = aLocation.a.text
         print(desc)
         SiteLocation.append(desc)
 
     print ("SiteNumber =", len(SiteNumber), "Site Name = ", len(SiteName), "Site Locations = ", len (SiteLocation))
-    '''
+
 
 except Exception as e:
     print (e)
-
-
-
-#creating a dataframe 
-site2List = pd.DataFrame({ "SiteNum": SiteNumber, "Site Name" : SiteName, "Location": SiteLocation } )
-
-site2List.head(5)
-
-print (site2List)   # this makes it pop up to display first and last 5 lines.
-
-
-# #saving the data in excel format
-site2List.to_excel(RadioFileName + str(".xlsx"))
-
-#If you want to save the data in csv format
-site2List.to_csv(RadioFileName + str(".csv"))
-
-# %%
-
