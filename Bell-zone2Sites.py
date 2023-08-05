@@ -3,11 +3,16 @@ import os  # for cls()
 import pandas as pd
 import numpy as np
 import requests
+import pickle
+import pprint
+
 from bs4 import BeautifulSoup
 from time import sleep
 from random import randint
 
-from json import loads, dumps
+# use pickle instead of json, pickle supports data types like dicts and tuples
+#from json import loads, dumps
+from pickle import loads, dumps
 
 # bot detection bypass.
 import random
@@ -15,9 +20,9 @@ import random
 # clear console screen
 os.system('clear')
 
-
 #-------------------------------------------------------------------------
-op25DefaultObj = {
+
+op25GoldenDefaultObj = {
     "channels": [
         {
             "name": "control channel", 
@@ -36,7 +41,7 @@ op25DefaultObj = {
     "devices": [
         {
             "args": "airspy=0", 
-            "frequency": 854000000, 
+            "frequency": 987654321, 
             "gains": "LNA:39", 
             "name": "rtl0", 
             "offset": 0, 
@@ -50,7 +55,7 @@ op25DefaultObj = {
         "chans": [
             {
                 "sysname": "Example",
-                "control_channel_list": "142.80",
+                "control_channel_list": "987.654321",
                 "tgid_tags_file": "",
                 "tgid_hold_time": 2.0,
                 "blacklist": "",
@@ -92,34 +97,85 @@ op25DefaultObj = {
     }
 }
 
+#-------------------------------------------------------------------------
+def setupDefaultJason():
+    # op25 files are in an obj format? 
+    # python works wants a json file in dictionary format.
+    # calling above default.json will fault as json.load wants strings not DICTS
 
-# op25 files are in an obj format? 
-# python works wants a json file in dictionary format.
-# calling above default.json will fault as json.load wants strings not DICTS
+    # 1) take op25 dict and convert into json string.
+    # 2) convert json string from 1) to jason.dict
+    # 3) use json.dict format from 2) for manipulating data
+    # notice slight diff b/n op25 dict and the local dict
 
-# 1) take op25 dict and convert into json string.
-# 2) convert json string from 1) to jason.dict
-# 3) use json.dict format from 2) for manipulating data
-# notice slight diff b/n op25 dict and the local dict
+    op25JsonString = dumps(op25GoldenDefaultObj)  #takes a json dict and makes a string
+    #print ("result of converting op25 json obj into json string\n\n", op25JsonString, "\n")
 
-op25JsonString = dumps(op25DefaultObj)  #takes a json dict and makes a string
-print ("result of converting op25 json obj into json string\n\n", op25JsonString, "\n")
+    # an op25 obj is not compatible with a python3 obj. So we had to convert
+    # from oj25 obj to string, string to python obj to allow python to manipulate dict members of obj
+    global workingJsonObj
+    workingJsonObj = loads(op25JsonString)
+    #print ("result of converting op25 string (python object of type = ", type(tempJsonObj)," )\n")
+    #print ("tempJsonObj *** ", tempJsonObj, "\n\n")
 
-# an op25 obj is not compatible with a python3 obj. So we had to convert
-# from oj25 obj to string, string to python obj to allow python to manipulate dict members of obj
-localJsonObj = loads(op25JsonString)
-print ("result of converting op25 string (python object of type = ", type(localJsonObj)," )\n")
-print (localJsonObj, "\n")
 
-# modify simple and complicated values
-localJsonObj["channels","symbol_rate"] = 2222222222
-localJsonObj["trunking_sysname"]='99999999999999999999999'
+#-------------------------------------------------------------------------
+def getValueOfKeyInList(list_of_keys, keyName):
+    try:
+        res = [d.get(keyName, None) for d in list_of_keys]  # res is a list []
+        print ("\nkey ", keyName, " = " + str(res))
+        return res
+    
+    except StopIteration:
+        raise ValueError("No matching record for ", keyName," found")
 
-print ("results of modifying some dict entries are ...\n\n", localJsonObj)
+def setValueOfKeyInList(list_of_keys, keyName, value):
+    try:
+         for d in list_of_keys:
+            res = d.get(keyName, None)  # does d have our keys name?
+            old = d.get(keyName, None)
+            if ( res != None):
+                d[keyName] = value
+                print("keyname ", keyName, " was ", old, "now is ", d.get(keyName, None))
 
-#prettyJason = dumps(localJsonObj)
-#print ("\nprettyJson is \n", prettyJason)
-quit(1) 
+    except StopIteration:
+        raise ValueError("No dictionary record for ", keyName, " was found")
+    
+def setValueOfKeyInDict(dictName, keyName, value):
+    try:
+        list = workingJsonObj[dictName]
+        setValueOfKeyInList(list, keyName, value)    
+    except:
+        raise ValueError("No dictionary record for ", keyName, " was found")
+        
+def getValueOfKeyInDict(dictName, keyName):
+    try:
+        list = workingJsonObj[dictName]
+        return getValueOfKeyInList(list, keyName)    
+    except:
+        raise ValueError("No dictionary record for ", keyName, " was found")
+        
+
+def testModifyJson():
+    # modify simple and complicated values
+
+    print ("demod_type = ", getValueOfKeyInDict('channels', 'demod_type'))
+    setValueOfKeyInDict('channels', 'demod_type', 'testing' )
+    print ("demod_type = ", getValueOfKeyInDict('channels', 'demod_type'))
+
+    print("\n eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n")
+
+    quit()
+
+    #print ("results of modifying some obj entries are ...\n\n", workingJsonObj,"\n\n")
+
+def    printWorkingJson():
+    #ttps://stackoverflow.com/questions/55944758/read-a-pickled-dictionary-python
+    # make a python data pretty printer.
+    print ("pppppppppppppppppppppppppppppppp \n\n")
+    pp = pprint.PrettyPrinter(indent=1)
+    pp.pprint(workingJsonObj)
+
 
 #-------------------------------------------------------------------------
 user_agents_list = [
@@ -133,7 +189,7 @@ user_agents_list = [
 #headers = {"Accept-Language": "en-US,en;q=0.5"}
 
 #declaring the list of empty variables, So that we can append the data overall
-
+SiteTable = []
 SiteNumbers = []
 SiteNameLong = []
 SiteNameShort = []
@@ -152,19 +208,6 @@ RadioFileName = 'BellZone2Sites'
 #the whole core of the script
 try:
 
-    test_df = pd.DataFrame(
-        [["a", "b"], ["c", "d"]],
-        index=["row 1", "row 2"],
-        columns=["col 1", "col 2"],
-    )
-    encoded = test_df.to_json(orient="split")
-    decoded = loads(encoded)
-    print (decoded)
-    pretty_sring = dumps(decoded, indent=4) # make pretty json formatted ouput
-    print (pretty_sring)  
-
-    #quit(1)
-
     print ("getting page ", RadioZoneHttp)
     page = requests.get( RadioZoneHttp, headers={'User-Agent': random.choice(user_agents_list)})
  
@@ -176,11 +219,11 @@ try:
     aSite = soup.find('div', id ='sites_div')
     #print(aSite)
 
-    siteTable = aSite.find('table', class_='table table-sm table-responsive table-bordered')
+    SiteTable = aSite.find('table', class_='table table-sm table-responsive table-bordered')
     #print ("siteTable = ", siteTable, "\n\n")
 
     # this is a list of td-'data-txt fit' objects.
-    manySiteNums = siteTable.findAll('td', class_='data-text fit')
+    manySiteNums = SiteTable.findAll('td', class_='data-text fit')
     #print ("manySiteNums = ", manySiteNums, "\n\n")
 
     for aSite in manySiteNums:
@@ -189,7 +232,7 @@ try:
         SiteNumbers.append(aSite.text)
 
 
-    manyNames = siteTable.find_all('td', style='width: 100%', class_=None)
+    manyNames = SiteTable.find_all('td', style='width: 100%', class_=None)
     #print (manyNames)
 
     for aName in manyNames:
@@ -203,7 +246,7 @@ try:
         SiteNameShort.append(shortDispName)
         #print ("short Display Name", shortDispName)
 
-    manyLocations = siteTable.find_all('td', style='width: 100%', class_='noWrapTd')
+    manyLocations = SiteTable.find_all('td', style='width: 100%', class_='noWrapTd')
     #print (manyLocations)
 
     for aLocation in manyLocations:
@@ -235,11 +278,11 @@ except Exception as e:
 # ======================= get frequencies ==============================================
 
 try:
-    manyChannels = siteTable.findAll('td', class_='data-text')
-    manyControls = siteTable.findAll('td', class_='data-text ctrl-pri')
+    manyChannels = SiteTable.findAll('td', class_='data-text')
+    manyControls = SiteTable.findAll('td', class_='data-text ctrl-pri')
 
     # the name of the site has no class, other entities with style tag do.
-    manyNames = siteTable.findAll('td', style='width: 100%', class_=None)
+    manyNames = SiteTable.findAll('td', style='width: 100%', class_=None)
     #print (manyNames)
 
     #for aName in manyNames:
@@ -289,16 +332,20 @@ try:
     # no more frequencies left, dump the guts of the last site
     controlChans = controlChans[:-1]    # remove tailing comma
     voiceChans = voiceChans[:-1]        # remove tailing comma
+
+
     print ( controlChans)
     print ( voiceChans)
 
+    setupDefaultJason()
+    printWorkingJson()
+    testModifyJson()
+    printWorkingJson()
+
     print ("-----------------------------------\n")
     
-    print ("exiting early ------------------------------------------------")
-    #quit()
-
     print ("SiteNumber =", len(SiteNumbers), "Long Name = ", len(SiteNameLong),"Short Name = ", len(SiteNameShort), "Site Locations = ", len (SiteLocations))
-
+ 
 
 except Exception as e:
     print (e)
