@@ -167,7 +167,6 @@ def testModifyJson():
 
     quit()
 
-    #print ("results of modifying some obj entries are ...\n\n", workingJsonObj,"\n\n")
 
 def    printWorkingJson():
     #ttps://stackoverflow.com/questions/55944758/read-a-pickled-dictionary-python
@@ -198,12 +197,14 @@ SiteLocations = []
 SiteFrequencies=[]
 SiteDescriptions = []
 
+voiceChans=""
+ctrlChans=""
+
 # creating an array of values and passing it in the url for dynamic webpages
 # range from 1 to 1000 counting by 100
 
 RadioZoneHttp = 'https://www.radioreference.com/db/sid/2560'
 RadioFileName = 'BellZone2Sites'
-
 
 #the whole core of the script
 try:
@@ -216,55 +217,99 @@ try:
     soup = BeautifulSoup(page.text, 'html.parser')
     #print (soup)
     # top of the area of interest where everything below is the movie
-    aSite = soup.find('div', id ='sites_div')
-    #print(aSite)
 
-    SiteTable = aSite.find('table', class_='table table-sm table-responsive table-bordered')
-    #print ("siteTable = ", siteTable, "\n\n")
+    aSiteNum = soup.find('div', id ='sites_div')
+    #print("============================================\n print aSite \n", aSite, "\n")
 
-    # this is a list of td-'data-txt fit' objects.
-    manySiteNums = SiteTable.findAll('td', class_='data-text fit')
-    #print ("manySiteNums = ", manySiteNums, "\n\n")
+    SiteTable = aSiteNum.find('table', class_='table table-sm table-responsive table-bordered')
+    #print ("===========================================\n siteTable = ", SiteTable, "\n\n")
 
-    for aSite in manySiteNums:
-        #print ("------\n\taSite = ", aSite)
-        #print ("\taSite.text = ", aSite.text, "\n")
-        SiteNumbers.append(aSite.text)
+    manyRecords = aSiteNum.findAll('tr')
+    #print ("==========================================\n", manyRecords)
+
+    skipFirst = True
 
 
-    manyNames = SiteTable.find_all('td', style='width: 100%', class_=None)
-    #print (manyNames)
+    for aRecord in manyRecords:
 
-    for aName in manyNames:
-        #print ("-----\n\taName = ", aName)
-        #print ("\taName.text = ", aName.text)
-        longDisplayName = aName.text.split('(')[0] # long display name is left of (blah)
-        #print ("long Display", longDisplay)
-        SiteNameLong.append(longDisplayName)
+        #creating a dataframe 
+        site2List = pd.DataFrame({ "SiteNum": SiteNumbers, "Long Name" : SiteNameLong, "Short Name" : SiteNameShort, "Location": SiteLocations } )
 
-        shortDispName = aName.text.split('(')[1].split(')')[0]  # display name is inside (blah)
-        SiteNameShort.append(shortDispName)
-        #print ("short Display Name", shortDispName)
+        # first entry is pretty layout and database stuff
+        if  (skipFirst == True) :
+            skipFirst = False
+            #print("skipping layout ?\n", aRecord, "\n")
+            continue
 
-    manyLocations = SiteTable.find_all('td', style='width: 100%', class_='noWrapTd')
-    #print (manyLocations)
+        voiceChans = ""
+        ctrlChans = ""
 
-    for aLocation in manyLocations:
-        #print ("-----\n\taName = ", aLocation)
-        #print ("\taName.text = ", aLocation.text)
-        SiteLocations.append(aLocation.text)
+        print ("---------------------------- aRecord = \n", aRecord, "\n")
+
+        aSiteNum = aRecord.find('td', class_='data-text fit')
+
+        if ( aSiteNum != None):
+            print ("------ aSiteNum = \n", aSiteNum, "\n")
+            print ("--- aSiteNum.text \n", aSiteNum.text, "\n")
+            SiteNumbers.append(aSiteNum.text)
+
+            aFullName = aRecord.find('td', style='width: 100%')
+            print("--- aFullName =\n", aFullName, "\n")
+            
+            longDisplayName = aFullName.text.split('(')[0] # long display name is left of (blah)
+            print ("long Display:", longDisplayName)
+            SiteNameLong.append(longDisplayName)
+
+            shortDispName = aFullName.text.split('(')[1].split(')')[0]  # display name is inside (blah)
+            SiteNameShort.append(shortDispName)
+            print ("short Display:", shortDispName)
+
+            aLocation = aRecord.find('td', style='width: 100%', class_='noWrapTd')
+            print ("-----\naLocation = ", aLocation)
+            print ("-----aLocation.text = ", aLocation.text)
+            SiteLocations.append(aLocation.text)
+
+        else:
+            print ("this a frequency only row?\n", aRecord, "\n")
+
+        # all records have frequencies in them.
+
+        listcFreqs = aRecord.findAll('td', class_='data-text crtl-pri')
+        for aFreq in listcFreqs:
+            cFreq = aFreq.text[:-1]  #drop the trailing c
+            print ("----- cFreq =", cFreq)
+            ctrlChans = ctrlChans + cFreq + ',' 
+
+        # findAll using just class='data-text' does implied WILDCARD
+        # above picks up too many 'data-text *' hits
+        # restrict findall to do a whole word exact match 
+        # lamda is a narrow scope function inside a function call :)
+        # https://stackoverflow.com/questions/22726860/beautifulsoup-webscraping-find-all-finding-exact-match
+
+        listvFreqs = aRecord.findAll(lambda tag: 
+                                        tag.name =='td' 
+                                        and tag.get('class') == ['data-text'])
+
+        for aFreq in listvFreqs:
+            vFreq = aFreq.text
+            print ("----- vFreq =", vFreq)
+            voiceChans = voiceChans + vFreq + ','
 
 
-    #creating a dataframe 
-    site2List = pd.DataFrame({ "SiteNum": SiteNumbers, "Long Name" : SiteNameLong, "Short Name" : SiteNameShort, "Location": SiteLocations } )
+        voiceChans = voiceChans[:-1]
+        ctrlChans = ctrlChans[:-1]
+        print ("")
+        print ("voiceChans channels :", voiceChans)
+        print ("ctrlChans  channels :", ctrlChans)
 
+    print()
     # if this is ever printed, print only first and last 5 entries
     site2List.head(5)
 
     # this makes the console display the table.
     # It is required for python3 but not for python2
     print (site2List)   
-    
+        
 
     # #saving the data in excel format
     site2List.to_excel(RadioFileName + str(".xlsx"))
@@ -275,67 +320,6 @@ try:
 except Exception as e:
     print (e)
 
-# ======================= get frequencies ==============================================
-
-try:
-    manyChannels = SiteTable.findAll('td', class_='data-text')
-    manyControls = SiteTable.findAll('td', class_='data-text ctrl-pri')
-
-    # the name of the site has no class, other entities with style tag do.
-    manyNames = SiteTable.findAll('td', style='width: 100%', class_=None)
-    #print (manyNames)
-
-    #for aName in manyNames:
-    #    theName = aName.a.text
-    #    print ("Site name = ", theName)
-       
-
-    voiceChans=''
-    controlChans=''
-    siteIndex = 0
-
-    print( 'ssss = ', manyChannels[1].text)
-    for channel in manyChannels:
-
-        aChannel = channel.text
-
-        if aChannel.find('c') != -1 :
-            print ("CONTROL = ", aChannel)
-            aChannel = aChannel[:-1]  # remove the 'c'
-            controlChans = controlChans + str(aChannel) + ','
-
-        elif aChannel.find('(') != -1 :
-
-            # detected start of a  new site, barf out current site channels
-            print(" ")
-
-            controlChans = controlChans[:-1]    # remove tailing comma
-            voiceChans = voiceChans[:-1]        # remove tailing comma
-            print (SiteNumbers[siteIndex])
-            siteIndex = siteIndex + 1
-        
-
-            print ( controlChans)
-            print ( voiceChans)
-
-            print("\n====================")
-
-            print ("SITE = ", aChannel)
-            voiceChans = ''
-            controlChans = ''
-        
-        else:
-            voiceChans = voiceChans + str(aChannel) + ','
-            print (aChannel)
-
-
-    # no more frequencies left, dump the guts of the last site
-    controlChans = controlChans[:-1]    # remove tailing comma
-    voiceChans = voiceChans[:-1]        # remove tailing comma
-
-
-    print ( controlChans)
-    print ( voiceChans)
 
     setupDefaultJason()
     printWorkingJson()
