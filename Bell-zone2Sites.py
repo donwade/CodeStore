@@ -200,17 +200,17 @@ SiteDescriptions = []
 voiceChans=""
 ctrlChans=""
 
-# creating an array of values and passing it in the url for dynamic webpages
-# range from 1 to 1000 counting by 100
-
-RadioZoneHttp = 'https://www.radioreference.com/db/sid/2560'
+RadioZoneHttpRoot = 'https://www.radioreference.com'
+RadioZoneTGnSites     = RadioZoneHttpRoot + '/db/sid/2560'
 RadioFileName = 'BellZone2Sites'
 
 #the whole core of the script
 try:
 
-    print ("getting page ", RadioZoneHttp)
-    page = requests.get( RadioZoneHttp, headers={'User-Agent': random.choice(user_agents_list)})
+    print ("getting page ", RadioZoneTGnSites)
+
+    # randomize the 'browser' we are using so it gets by bot detection
+    page = requests.get( RadioZoneTGnSites, headers={'User-Agent': random.choice(user_agents_list)})
  
     page.raise_for_status()
 
@@ -247,8 +247,23 @@ try:
         print ("---------------------------- aRecord = \n", aRecord, "\n")
 
         aSiteNum = aRecord.find('td', class_='data-text fit')
+        
 
         if ( aSiteNum != None):
+
+            # recover the gps co-ordinates. -------------------------- 
+            #auxLink = <td style="width: 100%"><a href="/db/site/28154">Harcourt (HARCOU)</a></td>
+            auxLink = aRecord.find('td', style='width: 100%')
+            textLink = str(auxLink) # convert object to simple text
+            #print ("textLink = ", textLink)
+            
+            breakupText = textLink.split(' ')
+            relGPSlink = breakupText[3].split('"')[1]  # gps link is in element 1
+            fullGPSlink = RadioZoneHttpRoot + relGPSlink
+            print ("fullGPSlink = ", fullGPSlink)
+
+            # back to real parsing of sites  --------------------------------------
+
             print ("------ aSiteNum = \n", aSiteNum, "\n")
             print ("--- aSiteNum.text \n", aSiteNum.text, "\n")
             SiteNumbers.append(aSiteNum.text)
@@ -280,8 +295,8 @@ try:
             print ("----- cFreq =", cFreq)
             ctrlChans = ctrlChans + cFreq + ',' 
 
-        # findAll using just class='data-text' does implied WILDCARD
-        # above picks up too many 'data-text *' hits
+        # findAll using just class='data-text' does implied WILDCARD of 'data-text*'
+        # above picks up too many 'data-text*' hits
         # restrict findall to do a whole word exact match 
         # lamda is a narrow scope function inside a function call :)
         # https://stackoverflow.com/questions/22726860/beautifulsoup-webscraping-find-all-finding-exact-match
@@ -318,7 +333,7 @@ try:
     site2List.to_csv(RadioFileName + str(".csv"))
 
 except Exception as e:
-    print (e)
+    print ("OH SHIT, caught an exception" , e)
 
 
     setupDefaultJason()
