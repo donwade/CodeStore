@@ -192,17 +192,15 @@ SiteTable = []
 SiteNumbers = []
 SiteNameLong = []
 SiteNameShort = []
-DisplayNames = []
 SiteLocations = []
-SiteFrequencies=[]
-SiteDescriptions = []
 
 voiceChans=""
 ctrlChans=""
 
 RadioZoneHttpRoot = 'https://www.radioreference.com'
 RadioZoneTGnSites     = RadioZoneHttpRoot + '/db/sid/2560'
-RadioFileName = 'BellZone2Sites'
+
+oldSiteNum = 0
 
 #the whole core of the script
 try:
@@ -229,11 +227,10 @@ try:
 
     skipFirst = True
 
-
     for aRecord in manyRecords:
 
         #creating a dataframe 
-        site2List = pd.DataFrame({ "SiteNum": SiteNumbers, "Long Name" : SiteNameLong, "Short Name" : SiteNameShort, "Location": SiteLocations } )
+        siteDataTable = pd.DataFrame({ "SiteNum": SiteNumbers, "Long Name" : SiteNameLong, "Short Name" : SiteNameShort, "Location": SiteLocations } )
 
         # first entry is pretty layout and database stuff
         if  (skipFirst == True) :
@@ -241,17 +238,35 @@ try:
             #print("skipping layout ?\n", aRecord, "\n")
             continue
 
-        voiceChans = ""
-        ctrlChans = ""
 
-        print ("---------------------------- aRecord = \n", aRecord, "\n")
+        #print ("---------------------------- aRecord = \n", aRecord, "\n")
 
         aSiteNum = aRecord.find('td', class_='data-text fit')
-        
 
         if ( aSiteNum != None):
 
+            if ( aSiteNum != oldSiteNum):
+                # we are getting ready to collect a new site.
+                # Dump the data of the old site now!
+                # call any Json format routines now !
+
+                
+                voiceChans = voiceChans[:-1]
+                ctrlChans = ctrlChans[:-1]
+
+
+                print ("")
+                print ("voiceChans channels :", voiceChans)
+                print ("ctrlChans  channels :", ctrlChans)
+
+                #whatever json calls
+
+            oldSiteNum = aSiteNum
+            voiceChans = ""
+            ctrlChans = ""
+
             # recover the gps co-ordinates. -------------------------- 
+            print ("\n===================================================")
             #auxLink = <td style="width: 100%"><a href="/db/site/28154">Harcourt (HARCOU)</a></td>
             auxLink = aRecord.find('td', style='width: 100%')
             textLink = str(auxLink) # convert object to simple text
@@ -260,16 +275,18 @@ try:
             breakupText = textLink.split(' ')
             relGPSlink = breakupText[3].split('"')[1]  # gps link is in element 1
             fullGPSlink = RadioZoneHttpRoot + relGPSlink
-            print ("fullGPSlink = ", fullGPSlink)
-
+ 
             # back to real parsing of sites  --------------------------------------
 
-            print ("------ aSiteNum = \n", aSiteNum, "\n")
-            print ("--- aSiteNum.text \n", aSiteNum.text, "\n")
-            SiteNumbers.append(aSiteNum.text)
+            #print ("------ aSiteNum = \n", aSiteNum, "\n")
+            #print ("--- aSiteNum.text =", aSiteNum.text, "\n")
+            decSiteNumber = int(aSiteNum.text.split(' ')[0])
+            SiteNumbers.append(decSiteNumber)
+            print ("decSiteNum :", decSiteNumber)
+            print ("fullGPSlink = ", fullGPSlink)
 
             aFullName = aRecord.find('td', style='width: 100%')
-            print("--- aFullName =\n", aFullName, "\n")
+            #print("--- aFullName =\n", aFullName, "\n")
             
             longDisplayName = aFullName.text.split('(')[0] # long display name is left of (blah)
             print ("long Display:", longDisplayName)
@@ -279,10 +296,10 @@ try:
             SiteNameShort.append(shortDispName)
             print ("short Display:", shortDispName)
 
-            aLocation = aRecord.find('td', style='width: 100%', class_='noWrapTd')
-            print ("-----\naLocation = ", aLocation)
-            print ("-----aLocation.text = ", aLocation.text)
-            SiteLocations.append(aLocation.text)
+            aAffiliation = aRecord.find('td', style='width: 100%', class_='noWrapTd')
+            #print ("-----\naLocation = ", aAffiliation)
+            print ("aAffiliation :", aAffiliation.text)
+            SiteLocations.append(aAffiliation.text)
 
         else:
             print ("this a frequency only row?\n", aRecord, "\n")
@@ -292,10 +309,10 @@ try:
         listcFreqs = aRecord.findAll('td', class_='data-text crtl-pri')
         for aFreq in listcFreqs:
             cFreq = aFreq.text[:-1]  #drop the trailing c
-            print ("----- cFreq =", cFreq)
+            #print ("----- cFreq =", cFreq)
             ctrlChans = ctrlChans + cFreq + ',' 
 
-        # findAll using just class='data-text' does implied WILDCARD of 'data-text*'
+        # findAll using just class='data-text' does implied WILDCARD like 'data-text*'
         # above picks up too many 'data-text*' hits
         # restrict findall to do a whole word exact match 
         # lamda is a narrow scope function inside a function call :)
@@ -311,26 +328,20 @@ try:
             voiceChans = voiceChans + vFreq + ','
 
 
-        voiceChans = voiceChans[:-1]
-        ctrlChans = ctrlChans[:-1]
-        print ("")
-        print ("voiceChans channels :", voiceChans)
-        print ("ctrlChans  channels :", ctrlChans)
-
     print()
     # if this is ever printed, print only first and last 5 entries
-    site2List.head(5)
+    siteDataTable.head(5)
 
     # this makes the console display the table.
     # It is required for python3 but not for python2
-    print (site2List)   
+    print (siteDataTable)   
         
 
     # #saving the data in excel format
-    site2List.to_excel(RadioFileName + str(".xlsx"))
+    siteDataTable.to_excel(shortDispName + str(".xlsx"))
 
     #If you want to save the data in csv format
-    site2List.to_csv(RadioFileName + str(".csv"))
+    siteDataTable.to_csv(shortDispName + str(".csv"))
 
 except Exception as e:
     print ("OH SHIT, caught an exception" , e)
