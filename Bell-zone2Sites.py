@@ -5,6 +5,7 @@ import numpy as np
 import requests
 import pickle
 import pprint
+import traceback
 
 from bs4 import BeautifulSoup
 from time import sleep
@@ -129,14 +130,14 @@ def getValueOfKeyInList(list_of_keys, keyName):
     except StopIteration:
         raise ValueError("No matching record for ", keyName," found")
 
-def setValueOfKeyInList(list_of_keys, keyName, value):
+def setValueOfKeyInList(dictName, list_of_keys, keyName, value):
     try:
          for d in list_of_keys:
             res = d.get(keyName, None)  # does d have our keys name?
             old = d.get(keyName, None)
             if ( res != None):
                 d[keyName] = value
-                print("keyname ", keyName, " was ", old, "now is ", d.get(keyName, None))
+                print( dictName,"->", keyName, " was =", old, "now =", d.get(keyName, None))
 
     except StopIteration:
         raise ValueError("No dictionary record for ", keyName, " was found")
@@ -144,7 +145,7 @@ def setValueOfKeyInList(list_of_keys, keyName, value):
 def setValueOfKeyInDict(dictName, keyName, value):
     try:
         list = workingJsonObj[dictName]
-        setValueOfKeyInList(list, keyName, value)    
+        setValueOfKeyInList(dictName, list, keyName, value)    
     except:
         raise ValueError("No dictionary record for ", keyName, " was found")
         
@@ -163,9 +164,7 @@ def testModifyJson():
     setValueOfKeyInDict('channels', 'demod_type', 'testing' )
     print ("demod_type = ", getValueOfKeyInDict('channels', 'demod_type'))
 
-    print("\n eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n")
 
-    quit()
 
 
 def    printWorkingJson():
@@ -194,13 +193,119 @@ SiteNameLong = []
 SiteNameShort = []
 SiteLocations = []
 
+shortDispName = ''
 voiceChans=""
 ctrlChans=""
 
 RadioZoneHttpRoot = 'https://www.radioreference.com'
 RadioZoneTGnSites     = RadioZoneHttpRoot + '/db/sid/2560'
 
-oldSiteNum = 0
+oldSiteNum = -1
+
+def hairball():
+        
+    # we are getting ready to collect a new site.
+    # Dump the data of the old site now!
+    # call any Json format routines now !
+    global voiceChans, ctrlChans 
+    
+    voiceChans = voiceChans[:-1]
+    ctrlChans = ctrlChans[:-1]
+
+
+    print ("")
+    print ("voiceChans channels :", voiceChans)
+    print ("ctrlChans  channels :", ctrlChans)
+
+    #whatever json calls
+    setupDefaultJason()
+    printWorkingJson()
+    setValueOfKeyInDict('channels', 'trunking_sysname', shortDispName )
+    printWorkingJson()
+
+def parseOneRecord(aRecord):
+
+    global oldSiteNum, voiceChans, ctrlChans, shortDispName
+
+    aSiteNum = aRecord.find('td', class_='data-text fit')
+
+    if ( aSiteNum != None):
+
+        if ( aSiteNum != oldSiteNum):
+            hairball()
+ 
+        oldSiteNum = aSiteNum
+        voiceChans = ""
+        ctrlChans = ""
+
+        # recover the gps co-ordinates. -------------------------- 
+        print ("\n===================================================")
+        #auxLink = <td style="width: 100%"><a href="/db/site/28154">Harcourt (HARCOU)</a></td>
+        auxLink = aRecord.find('td', style='width: 100%')
+        textLink = str(auxLink) # convert object to simple text
+        #print ("textLink = ", textLink)
+        
+        breakupText = textLink.split(' ')
+        relGPSlink = breakupText[3].split('"')[1]  # gps link is in element 1
+        fullGPSlink = RadioZoneHttpRoot + relGPSlink
+
+        # back to real parsing of sites  --------------------------------------
+
+        #print ("------ aSiteNum = \n", aSiteNum, "\n")
+        #print ("--- aSiteNum.text =", aSiteNum.text, "\n")
+        decSiteNumber = int(aSiteNum.text.split(' ')[0])
+        SiteNumbers.append(decSiteNumber)
+        print ("decSiteNum :", decSiteNumber)
+        print ("fullGPSlink = ", fullGPSlink)
+
+        aFullName = aRecord.find('td', style='width: 100%')
+        #print("--- aFullName =\n", aFullName, "\n")
+        
+        longDisplayName = aFullName.text.split('(')[0] # long display name is left of (blah)
+        print ("long Display:", longDisplayName)
+        SiteNameLong.append(longDisplayName)
+
+        shortDispName = aFullName.text.split('(')[1].split(')')[0]  # display name is inside (blah)
+        SiteNameShort.append(shortDispName)
+        print ("short Display:", shortDispName)
+
+        aAffiliation = aRecord.find('td', style='width: 100%', class_='noWrapTd')
+        #print ("-----\naLocation = ", aAffiliation)
+        print ("aAffiliation :", aAffiliation.text)
+        SiteLocations.append(aAffiliation.text)
+
+    else:
+        #print ("note: parsing a frequency only row\n", aRecord, "\n")
+        print ("note: parsing a frequency only row\nadding more voice/control")
+
+    # all records have frequencies in them.
+
+    listcFreqs = aRecord.findAll('td', class_='data-text crtl-pri')
+    for aFreq in listcFreqs:
+        cFreq = aFreq.text[:-1]  #drop the trailing c
+        print ("----- cFreq =", cFreq)
+        ctrlChans = ctrlChans + '\'' + cFreq + '\'' + ','
+
+    # findAll using just class='data-text' does implied WILDCARD like 'data-text*'
+    # above picks up too many 'data-text*' hits
+    # restrict findall to do a whole word exact match 
+    # lamda is a narrow scope function inside a function call :)
+    # https://stackoverflow.com/questions/22726860/beautifulsoup-webscraping-find-all-finding-exact-match
+
+    listvFreqs = aRecord.findAll(lambda tag: 
+                                    tag.name =='td' 
+                                    and tag.get('class') == ['data-text'])
+
+    for aFreq in listvFreqs:
+        vFreq = aFreq.text
+        print ("----- vFreq =", vFreq)
+        voiceChans = voiceChans + '\'' + vFreq + '\'' + ','
+
+
+
+#-------------------------------------------------------------------------
+#try:
+#    raise NotImplementedError("No error")
 
 #the whole core of the script
 try:
@@ -229,108 +334,38 @@ try:
 
     for aRecord in manyRecords:
 
-        #creating a dataframe 
-        siteDataTable = pd.DataFrame({ "SiteNum": SiteNumbers, "Long Name" : SiteNameLong, "Short Name" : SiteNameShort, "Location": SiteLocations } )
-
         # first entry is pretty layout and database stuff
         if  (skipFirst == True) :
             skipFirst = False
-            #print("skipping layout ?\n", aRecord, "\n")
+            #print("skipping header text layout ?\n", aRecord, "\n")
             continue
 
 
         #print ("---------------------------- aRecord = \n", aRecord, "\n")
 
-        aSiteNum = aRecord.find('td', class_='data-text fit')
+        #creating a dataframe   
+        siteDataTable = pd.DataFrame({ "SiteNum": SiteNumbers, "Long Name" : SiteNameLong, "Short Name" : SiteNameShort, "Location": SiteLocations } )
 
-        if ( aSiteNum != None):
+        parseOneRecord(aRecord)
 
-            if ( aSiteNum != oldSiteNum):
-                # we are getting ready to collect a new site.
-                # Dump the data of the old site now!
-                # call any Json format routines now !
+    # don't strand the last site processed, there won't be a following site
+    # to force it to cough out site data
+    #                 
+    voiceChans = voiceChans[:-1]
+    ctrlChans = ctrlChans[:-1]
 
-                
-                voiceChans = voiceChans[:-1]
-                ctrlChans = ctrlChans[:-1]
+    print ("")
+    print ("voiceChans channels :", voiceChans)
+    print ("ctrlChans  channels :", ctrlChans)
 
-
-                print ("")
-                print ("voiceChans channels :", voiceChans)
-                print ("ctrlChans  channels :", ctrlChans)
-
-                #whatever json calls
-
-            oldSiteNum = aSiteNum
-            voiceChans = ""
-            ctrlChans = ""
-
-            # recover the gps co-ordinates. -------------------------- 
-            print ("\n===================================================")
-            #auxLink = <td style="width: 100%"><a href="/db/site/28154">Harcourt (HARCOU)</a></td>
-            auxLink = aRecord.find('td', style='width: 100%')
-            textLink = str(auxLink) # convert object to simple text
-            #print ("textLink = ", textLink)
-            
-            breakupText = textLink.split(' ')
-            relGPSlink = breakupText[3].split('"')[1]  # gps link is in element 1
-            fullGPSlink = RadioZoneHttpRoot + relGPSlink
- 
-            # back to real parsing of sites  --------------------------------------
-
-            #print ("------ aSiteNum = \n", aSiteNum, "\n")
-            #print ("--- aSiteNum.text =", aSiteNum.text, "\n")
-            decSiteNumber = int(aSiteNum.text.split(' ')[0])
-            SiteNumbers.append(decSiteNumber)
-            print ("decSiteNum :", decSiteNumber)
-            print ("fullGPSlink = ", fullGPSlink)
-
-            aFullName = aRecord.find('td', style='width: 100%')
-            #print("--- aFullName =\n", aFullName, "\n")
-            
-            longDisplayName = aFullName.text.split('(')[0] # long display name is left of (blah)
-            print ("long Display:", longDisplayName)
-            SiteNameLong.append(longDisplayName)
-
-            shortDispName = aFullName.text.split('(')[1].split(')')[0]  # display name is inside (blah)
-            SiteNameShort.append(shortDispName)
-            print ("short Display:", shortDispName)
-
-            aAffiliation = aRecord.find('td', style='width: 100%', class_='noWrapTd')
-            #print ("-----\naLocation = ", aAffiliation)
-            print ("aAffiliation :", aAffiliation.text)
-            SiteLocations.append(aAffiliation.text)
-
-        else:
-            print ("this a frequency only row?\n", aRecord, "\n")
-
-        # all records have frequencies in them.
-
-        listcFreqs = aRecord.findAll('td', class_='data-text crtl-pri')
-        for aFreq in listcFreqs:
-            cFreq = aFreq.text[:-1]  #drop the trailing c
-            #print ("----- cFreq =", cFreq)
-            ctrlChans = ctrlChans + cFreq + ',' 
-
-        # findAll using just class='data-text' does implied WILDCARD like 'data-text*'
-        # above picks up too many 'data-text*' hits
-        # restrict findall to do a whole word exact match 
-        # lamda is a narrow scope function inside a function call :)
-        # https://stackoverflow.com/questions/22726860/beautifulsoup-webscraping-find-all-finding-exact-match
-
-        listvFreqs = aRecord.findAll(lambda tag: 
-                                        tag.name =='td' 
-                                        and tag.get('class') == ['data-text'])
-
-        for aFreq in listvFreqs:
-            vFreq = aFreq.text
-            print ("----- vFreq =", vFreq)
-            voiceChans = voiceChans + vFreq + ','
-
+    #whatever json calls
 
     print()
+
+
+        
     # if this is ever printed, print only first and last 5 entries
-    siteDataTable.head(5)
+    #siteDataTable.head(5)
 
     # this makes the console display the table.
     # It is required for python3 but not for python2
@@ -344,17 +379,11 @@ try:
     siteDataTable.to_csv(shortDispName + str(".csv"))
 
 except Exception as e:
-    print ("OH SHIT, caught an exception" , e)
+    #https://stackoverflow.com/questions/1278705/when-i-catch-an-exception-how-do-i-get-the-type-file-and-line-number
+    print(traceback.format_exc())
+    #print ("OH SHIT, caught an exception" , e)
 
-
-    setupDefaultJason()
-    printWorkingJson()
-    testModifyJson()
-    printWorkingJson()
-
-    print ("-----------------------------------\n")
-    
-    print ("SiteNumber =", len(SiteNumbers), "Long Name = ", len(SiteNameLong),"Short Name = ", len(SiteNameShort), "Site Locations = ", len (SiteLocations))
+   
  
 
 except Exception as e:
