@@ -4,8 +4,11 @@ import pandas as pd
 import numpy as np
 import requests
 import pickle
-import pprint
+import pprint  
 import traceback
+import json
+import sys
+from contextlib import redirect_stdout
 
 from bs4 import BeautifulSoup
 from time import sleep
@@ -61,7 +64,7 @@ op25GoldenDefaultObj = {
                 "tgid_hold_time": 2.0,
                 "blacklist": "",
                 "whitelist": "",
-                "bandplan_comment": "OPP https://www.radioreference.com/apps/db/?sid=2560",
+                "bandplan_comment": "https://www.radioreference.com/apps/db/?sid=2560",
                 "bandplan": "400",
                 "bp_comment": "The bp_ parameters are only used by the 400 bandplan",
                 "bp_spacing": 0.015,
@@ -115,6 +118,7 @@ def setupDefaultJason():
     # an op25 obj is not compatible with a python3 obj. So we had to convert
     # from oj25 obj to string, string to python obj to allow python to manipulate dict members of obj
     global workingJsonObj
+    
     workingJsonObj = loads(op25JsonString)
     #print ("result of converting op25 string (python object of type = ", type(tempJsonObj)," )\n")
     #print ("tempJsonObj *** ", tempJsonObj, "\n\n")
@@ -141,10 +145,29 @@ def setValueOfKeyInList(dictName, list_of_keys, keyName, value):
 
     except StopIteration:
         raise ValueError("No dictionary record for ", keyName, " was found")
-    
+
+def setDictInListOfDict(dictName1, listName, subDictName, value):
+    try:
+        # the root DICTionary contains a LIST that contains DICTionaries
+        topDictionary = workingJsonObj[dictName1]
+        hasAlist = topDictionary[listName]
+
+        #print ("\n", type(topDictionary),"topDictionary = ", topDictionary, "\n")
+        #print ("\n", type(hasAlist),"hasAlist = ", hasAlist, "\n")
+
+        for aSubDictionary in hasAlist:
+            # the list actually only contains ONE dictionary
+            #print ("\n", type(subDictionary), " searching subDictionary = ", subDictionary, "\n")
+            old = aSubDictionary[subDictName]
+            aSubDictionary[subDictName] = value
+
+        #print("old=", old, "new=", value)
+    except:
+        raise ValueError("No dictionary record for ", subDictName, " was found")
+
 def setValueOfKeyInDict(dictName, keyName, value):
     try:
-        list = workingJsonObj[dictName]
+        list = workingJsonObj[dictName] 
         setValueOfKeyInList(dictName, list, keyName, value)    
     except:
         raise ValueError("No dictionary record for ", keyName, " was found")
@@ -167,12 +190,27 @@ def testModifyJson():
 
 
 
-def    printWorkingJson():
+def    printWorkingJson( headerMessage ):
     #ttps://stackoverflow.com/questions/55944758/read-a-pickled-dictionary-python
     # make a python data pretty printer.
-    print ("pppppppppppppppppppppppppppppppp \n\n")
-    pp = pprint.PrettyPrinter(indent=1)
-    pp.pprint(workingJsonObj)
+    print ("\n\n", headerMessage , "  -----------------------------------------------\n")
+
+    #** PrettyPrinter width=1, force each element to have its own personal line or it bashes them ALL into 80 charwidth
+    toScreen = pprint.PrettyPrinter(indent=4, width=1, sort_dicts=False)
+    toScreen.pprint(workingJsonObj)
+
+    serialized = json.dumps(workingJsonObj)
+    print (serialized)
+
+    global shortDispName
+
+    #https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python
+    fileName = "smartnet-"+ shortDispName + ".jason"
+    with open(fileName, "w") as outfile:
+        with redirect_stdout(outfile):
+            print(serialized)
+        #toFile = pprint.PrettyPrinter(indent=4, width=1, stream=outfile, sort_dicts=False)
+        #toFile.pprint(workingJsonObj)
 
 
 #-------------------------------------------------------------------------
@@ -194,8 +232,8 @@ SiteNameShort = []
 SiteLocations = []
 
 shortDispName = ''
-voiceChans=""
-ctrlChans=""
+voiceChans=[]
+ctrlChans=[]
 
 RadioZoneHttpRoot = 'https://www.radioreference.com'
 RadioZoneTGnSites     = RadioZoneHttpRoot + '/db/sid/2560'
@@ -210,7 +248,7 @@ def hairball():
     global voiceChans, ctrlChans 
     
     voiceChans = voiceChans[:-1]
-    ctrlChans = ctrlChans[:-1]
+    #ctrlChans = ctrlChans[:-1]
 
 
     print ("")
@@ -219,9 +257,11 @@ def hairball():
 
     #whatever json calls
     setupDefaultJason()
-    printWorkingJson()
-    setValueOfKeyInDict('channels', 'trunking_sysname', shortDispName )
-    printWorkingJson()
+    #printWorkingJson("BEFORE")
+    #setValueOfKeyInDict('channels', 'trunking_sysname', shortDispName )
+    #  ',',join(somelist)  ... convert list to comma delimited string
+    setDictInListOfDict('trunking', 'chans', 'control_channel_list', ','.join(ctrlChans))
+    printWorkingJson("AFTER")
 
 def parseOneRecord(aRecord):
 
@@ -235,8 +275,8 @@ def parseOneRecord(aRecord):
             hairball()
  
         oldSiteNum = aSiteNum
-        voiceChans = ""
-        ctrlChans = ""
+        voiceChans = []
+        ctrlChans = []
 
         # recover the gps co-ordinates. -------------------------- 
         print ("\n===================================================")
@@ -284,8 +324,8 @@ def parseOneRecord(aRecord):
     for aFreq in listcFreqs:
         cFreq = aFreq.text[:-1]  #drop the trailing c
         print ("----- cFreq =", cFreq)
-        ctrlChans = ctrlChans + '\'' + cFreq + '\'' + ','
-
+        ctrlChans.append(cFreq)
+ 
     # findAll using just class='data-text' does implied WILDCARD like 'data-text*'
     # above picks up too many 'data-text*' hits
     # restrict findall to do a whole word exact match 
@@ -299,13 +339,13 @@ def parseOneRecord(aRecord):
     for aFreq in listvFreqs:
         vFreq = aFreq.text
         print ("----- vFreq =", vFreq)
-        voiceChans = voiceChans + '\'' + vFreq + '\'' + ','
-
+        voiceChans.append(vFreq)
+ 
 
 
 #-------------------------------------------------------------------------
-#try:
-#    raise NotImplementedError("No error")
+#*** try:
+#***    raise NotImplementedError("No error")
 
 #the whole core of the script
 try:
@@ -351,9 +391,6 @@ try:
     # don't strand the last site processed, there won't be a following site
     # to force it to cough out site data
     #                 
-    voiceChans = voiceChans[:-1]
-    ctrlChans = ctrlChans[:-1]
-
     print ("")
     print ("voiceChans channels :", voiceChans)
     print ("ctrlChans  channels :", ctrlChans)
@@ -361,8 +398,6 @@ try:
     #whatever json calls
 
     print()
-
-
         
     # if this is ever printed, print only first and last 5 entries
     #siteDataTable.head(5)
@@ -383,8 +418,6 @@ except Exception as e:
     print(traceback.format_exc())
     #print ("OH SHIT, caught an exception" , e)
 
-   
- 
 
 except Exception as e:
     print (e)
